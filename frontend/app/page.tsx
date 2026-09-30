@@ -1,0 +1,14 @@
+'use client';
+import {useMemo,useState} from 'react';
+import {Chessboard} from 'react-chessboard';
+const API=process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000';
+const sample=`[Event "KnightLens Demo"]\n[Site "Local"]\n[Date "2026.10.01"]\n[Round "-"]\n[White "White"]\n[Black "Black"]\n[Result "*"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 *`;
+export default function Home(){
+ const [pgn,setPgn]=useState(sample),[data,setData]=useState<any>(null),[idx,setIdx]=useState(-1),[busy,setBusy]=useState(false),[err,setErr]=useState('');
+ async function analyze(){setBusy(true);setErr('');try{const r=await fetch(`${API}/review`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pgn,depth:14})});const j=await r.json();if(!r.ok)throw new Error(j.detail||'Analysis failed');setData(j);setIdx(j.moves.length-1)}catch(e:any){setErr(e.message)}finally{setBusy(false)}}
+ const fen=useMemo(()=>idx<0?(data?.initial_fen||'start'):data.moves[idx].fen,[data,idx]);
+ return <main><header><div className="logo">♞</div><div><h1>KnightLens</h1><p>Unlimited local chess review</p></div></header>
+ <section className="input"><textarea value={pgn} onChange={e=>setPgn(e.target.value)} placeholder="Paste PGN here…"/><div className="actions"><label className="upload">Upload PGN<input type="file" accept=".pgn,text/plain" onChange={async e=>{const f=e.target.files?.[0];if(f)setPgn(await f.text())}}/></label><button onClick={analyze} disabled={busy}>{busy?'Stockfish is thinking…':'Review game'}</button></div>{err&&<p className="error">{err}</p>}</section>
+ {data&&<section className="review"><div className="board"><Chessboard position={fen}/><div className="nav"><button onClick={()=>setIdx(-1)}>⏮</button><button onClick={()=>setIdx(Math.max(-1,idx-1))}>◀</button><span>{idx>=0?`${data.moves[idx].move_number}${data.moves[idx].color==='black'?'…':'.'} ${data.moves[idx].san}`:'Start'}</span><button onClick={()=>setIdx(Math.min(data.moves.length-1,idx+1))}>▶</button><button onClick={()=>setIdx(data.moves.length-1)}>⏭</button></div></div>
+ <aside><div className="scores"><div><b>{data.summary.white_accuracy}%</b><small>White accuracy</small></div><div><b>{data.summary.black_accuracy}%</b><small>Black accuracy</small></div></div>{idx>=0&&<div className="card"><span className={'tag '+data.moves[idx].classification}>{data.moves[idx].classification}</span><h2>{data.moves[idx].san}</h2><p>Best: <b>{data.moves[idx].best_move||'—'}</b></p><p>Loss: <b>{data.moves[idx].centipawn_loss} cp</b></p><p className="pv">{data.moves[idx].pv.join(' ')}</p></div>}<div className="moves">{data.moves.map((m:any,i:number)=><button key={i} className={i===idx?'active':''} onClick={()=>setIdx(i)}><span>{m.move_number}{m.color==='black'?'…':'.'}</span> {m.san}<i className={m.classification}>{m.classification[0].toUpperCase()}</i></button>)}</div></aside></section>}
+ <footer>Local analysis • Your PGN stays on your machine</footer></main>}
